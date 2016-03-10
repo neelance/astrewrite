@@ -50,7 +50,7 @@ func (c *simplifyContext) simplifyStmt(stmts *[]ast.Stmt, s ast.Stmt) {
 			If:   s.If,
 			Cond: c.simplifyExpr(stmts, s.Cond),
 			Body: c.simplifyBlock(s.Body),
-			Else: toSingleStmt(c.simplifyToStmtList(s.Else)),
+			Else: toElseBranch(c.simplifyToStmtList(s.Else)),
 		})
 
 	case *ast.SwitchStmt:
@@ -283,7 +283,7 @@ func (c *simplifyContext) switchToIfElse(tag ast.Expr, clauses []ast.Stmt) (stmt
 		If:   clause.Case,
 		Cond: c.simplifyExpr(&stmts, disjunction(conds)),
 		Body: &ast.BlockStmt{List: c.simplifyStmtList(clause.Body)},
-		Else: toSingleStmt(c.switchToIfElse(tag, clauses[1:])),
+		Else: toElseBranch(c.switchToIfElse(tag, clauses[1:])),
 	})
 	return
 }
@@ -304,16 +304,18 @@ func (c *simplifyContext) simplifyToStmtList(s ast.Stmt) (stmts []ast.Stmt) {
 	return
 }
 
-func toSingleStmt(stmts []ast.Stmt) ast.Stmt {
-	switch len(stmts) {
-	case 0:
+func toElseBranch(stmts []ast.Stmt) ast.Stmt {
+	if len(stmts) == 0 {
 		return nil
-	case 1:
-		return stmts[0]
-	default:
-		return &ast.BlockStmt{
-			List: stmts,
+	}
+	if len(stmts) == 1 {
+		switch stmt := stmts[0].(type) {
+		case *ast.IfStmt, *ast.BlockStmt:
+			return stmt
 		}
+	}
+	return &ast.BlockStmt{
+		List: stmts,
 	}
 }
 
