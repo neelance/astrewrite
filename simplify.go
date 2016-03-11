@@ -90,6 +90,8 @@ func (c *simplifyContext) simplifyStmt(stmts *[]ast.Stmt, s ast.Stmt) {
 					},
 				},
 			}
+		default:
+			panic("unexpected type switch assign")
 		}
 		simplifiedClauses := c.simplifyCaseClauses(s.Body.List)
 		clauses := make([]ast.Stmt, len(simplifiedClauses))
@@ -164,11 +166,51 @@ func (c *simplifyContext) simplifyStmt(stmts *[]ast.Stmt, s ast.Stmt) {
 		clauses := make([]ast.Stmt, len(s.Body.List))
 		for i, entry := range s.Body.List {
 			cc := entry.(*ast.CommClause)
+			var newComm ast.Stmt
+			var bodyPrefix []ast.Stmt
+			switch comm := cc.Comm.(type) {
+			case *ast.ExprStmt:
+				recv := comm.X.(*ast.UnaryExpr)
+				if recv.Op != token.ARROW {
+					panic("unexpected comm clause")
+				}
+				newComm = &ast.ExprStmt{
+					X: &ast.UnaryExpr{
+						Op:    token.ARROW,
+						OpPos: recv.OpPos,
+						X:     c.simplifyExpr(stmts, recv.X),
+					},
+				}
+			case *ast.AssignStmt:
+				recv := comm.Rhs[0].(*ast.UnaryExpr)
+				if recv.Op != token.ARROW {
+					panic("unexpected comm clause")
+				}
+				lhs := comm.Lhs[0]
+				tok := comm.Tok
+				if ContainsCall(lhs) {
+					id := c.newIdent()
+					bodyPrefix = append(bodyPrefix, simpleAssign(c.simplifyExpr(&bodyPrefix, comm.Lhs[0]), comm.Tok, id))
+					lhs = id
+					tok = token.DEFINE
+				}
+				newComm = simpleAssign(lhs, tok, c.simplifyExpr(stmts, recv))
+			case *ast.SendStmt:
+				newComm = &ast.SendStmt{
+					Chan:  c.simplifyExpr(stmts, comm.Chan),
+					Arrow: comm.Arrow,
+					Value: c.simplifyExpr(stmts, comm.Value),
+				}
+			case nil:
+				newComm = nil
+			default:
+				panic("unexpected comm clause")
+			}
 			clauses[i] = &ast.CommClause{
 				Case:  cc.Case,
-				Comm:  cc.Comm, // FIXME
+				Comm:  newComm,
 				Colon: cc.Colon,
-				Body:  c.simplifyStmtList(cc.Body),
+				Body:  append(bodyPrefix, c.simplifyStmtList(cc.Body)...),
 			}
 		}
 		*stmts = append(*stmts, &ast.SelectStmt{
@@ -461,8 +503,7 @@ func (c *simplifyContext) simplifyArgs(stmts *[]ast.Stmt, args []ast.Expr) []ast
 			call := c.simplifyExpr2(stmts, args[0], true)
 			vars := make([]ast.Expr, tuple.Len())
 			for i := range vars {
-				c.varCounter++
-				vars[i] = ast.NewIdent(fmt.Sprintf("_%d", c.varCounter))
+				vars[i] = c.newIdent()
 			}
 			*stmts = append(*stmts, &ast.AssignStmt{
 				Lhs: vars,
@@ -480,10 +521,14 @@ func (c *simplifyContext) simplifyArgs(stmts *[]ast.Stmt, args []ast.Expr) []ast
 }
 
 func (c *simplifyContext) newVar(stmts *[]ast.Stmt, x ast.Expr) ast.Expr {
-	c.varCounter++
-	id := ast.NewIdent(fmt.Sprintf("_%d", c.varCounter))
+	id := c.newIdent()
 	*stmts = append(*stmts, simpleAssign(id, token.DEFINE, x))
 	return id
+}
+
+func (c *simplifyContext) newIdent() *ast.Ident {
+	c.varCounter++
+	return ast.NewIdent(fmt.Sprintf("_%d", c.varCounter))
 }
 
 func simpleAssign(lhs ast.Expr, tok token.Token, rhs ast.Expr) *ast.AssignStmt {
