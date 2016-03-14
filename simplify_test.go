@@ -25,6 +25,7 @@ func TestSimplify(t *testing.T) {
 	simplifyAndCompare(t, "func() { -a() }", "func() { _1 := a(); -_1 }")
 	simplifyAndCompare(t, "T{a(), b()}", "_1 := a(); _2 := b(); T{_1, _2}")
 	simplifyAndCompare(t, "T{A: a(), B: b()}", "_1 := a(); _2 := b(); T{A: _1, B: _2}")
+	simplifyAndCompare(t, "func() { a()() }", "func() { _1 := a(); _1() }")
 
 	simplifyAndCompare(t, "a() && b", "_1 := a(); _1 && b")
 	simplifyAndCompare(t, "a && b()", "_1 := a; if _1 { _1 = b() }; _1")
