@@ -44,7 +44,7 @@ func TestSimplify(t *testing.T) {
 	simplifyAndCompare(t, "if a { b } else if c() { d }", "if a { b } else { _1 := c(); if _1 { d } }")
 	simplifyAndCompare(t, "if a { b } else if c := d(); c { e }", "if a { b } else { c := d(); if c { e } }")
 
-	simplifyAndCompare(t, "switch a { case b, c: d()() }", "switch { default: _1 := a; if _1 == (b) || _1 == (c) { _2 := d(); _2() } }")
+	simplifyAndCompare(t, "l: switch a { case b, c: d()() }", "l: switch { default: _1 := a; if _1 == (b) || _1 == (c) { _2 := d(); _2() } }")
 	simplifyAndCompare(t, "switch a() { case b: c }", "switch { default: _1 := a(); if _1 == (b) { c } }")
 	simplifyAndCompare(t, "switch x := a(); x { case b, c: d }", "switch { default: x := a(); _1 := x; if _1 == (b) || _1 == (c) { d } }")
 	simplifyAndCompare(t, "switch a() { case b: c; default: e; case c: d }", "switch { default: _1 := a(); if _1 == (b) { c } else if _1 == (c) { d } else { e } }")

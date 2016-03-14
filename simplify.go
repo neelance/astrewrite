@@ -40,6 +40,14 @@ func (c *simplifyContext) simplifyStmt(stmts *[]ast.Stmt, s ast.Stmt) {
 	case *ast.BlockStmt:
 		*stmts = append(*stmts, c.simplifyBlock(s))
 
+	case *ast.LabeledStmt:
+		c.simplifyStmt(stmts, s.Stmt)
+		(*stmts)[len(*stmts)-1] = &ast.LabeledStmt{
+			Label: s.Label,
+			Colon: s.Colon,
+			Stmt:  (*stmts)[len(*stmts)-1],
+		}
+
 	case *ast.IfStmt:
 		if s.Init != nil {
 			block := &ast.BlockStmt{}
