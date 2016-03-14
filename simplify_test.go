@@ -37,6 +37,9 @@ func TestSimplify(t *testing.T) {
 
 	simplifyAndCompare(t, "a && (b || c())", "_1 := a; if(_1) { _2 := b; if(!_2) { _2 = c() }; _1 = (_2) }; _1")
 
+	simplifyAndCompare(t, "a := b()()", "_1 := b(); a := _1()")
+	simplifyAndCompare(t, "a().f = b", "_1 := a(); _1.f = b")
+
 	simplifyAndCompare(t, "if a() { b }", "_1 := a(); if _1 { b }")
 	simplifyAndCompare(t, "if a := b(); a { c }", "{ a := b(); if a { c } }")
 	simplifyAndCompare(t, "if a { b()() }", "if a { _1 := b(); _1() }")

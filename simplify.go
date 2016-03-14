@@ -48,6 +48,22 @@ func (c *simplifyContext) simplifyStmt(stmts *[]ast.Stmt, s ast.Stmt) {
 			Stmt:  (*stmts)[len(*stmts)-1],
 		}
 
+	case *ast.AssignStmt:
+		lhs := make([]ast.Expr, len(s.Lhs))
+		for i, x := range s.Lhs {
+			lhs[i] = c.simplifyExpr(stmts, x)
+		}
+		rhs := make([]ast.Expr, len(s.Rhs))
+		for i, x := range s.Rhs {
+			rhs[i] = c.simplifyExpr2(stmts, x, true)
+		}
+		*stmts = append(*stmts, &ast.AssignStmt{
+			Lhs:    lhs,
+			Tok:    s.Tok,
+			TokPos: s.TokPos,
+			Rhs:    rhs,
+		})
+
 	case *ast.IfStmt:
 		if s.Init != nil {
 			block := &ast.BlockStmt{}
