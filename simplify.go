@@ -8,12 +8,13 @@ import (
 )
 
 type simplifyContext struct {
-	info       *types.Info
-	varCounter int
+	info          *types.Info
+	varCounter    int
+	simplifyCalls bool
 }
 
-func Simplify(stmts []ast.Stmt, info *types.Info) []ast.Stmt {
-	c := &simplifyContext{info: info}
+func Simplify(stmts []ast.Stmt, info *types.Info, simplifyCalls bool) []ast.Stmt {
+	c := &simplifyContext{info: info, simplifyCalls: simplifyCalls}
 	return c.simplifyStmtList(stmts)
 }
 
@@ -437,7 +438,7 @@ func (c *simplifyContext) simplifyExpr2(stmts *[]ast.Stmt, x ast.Expr, callOK bo
 
 	case *ast.CallExpr:
 		call := c.simplifyCall(stmts, x)
-		if callOK {
+		if callOK || !c.simplifyCalls {
 			return call
 		}
 		return c.newVar(stmts, call)
@@ -499,7 +500,7 @@ func (c *simplifyContext) simplifyCall(stmts *[]ast.Stmt, x *ast.CallExpr) *ast.
 
 func (c *simplifyContext) simplifyArgs(stmts *[]ast.Stmt, args []ast.Expr) []ast.Expr {
 	if len(args) == 1 {
-		if tuple, ok := c.info.TypeOf(args[0]).(*types.Tuple); ok {
+		if tuple, ok := c.info.TypeOf(args[0]).(*types.Tuple); ok && c.simplifyCalls {
 			call := c.simplifyExpr2(stmts, args[0], true)
 			vars := make([]ast.Expr, tuple.Len())
 			for i := range vars {

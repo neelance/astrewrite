@@ -96,7 +96,7 @@ func simplifyAndCompare2(t *testing.T, in, out string, mockTypes func([]ast.Stmt
 
 	file := parse(t, fset, in)
 	f := file.Decls[0].(*ast.FuncDecl)
-	f.Body.List = Simplify(f.Body.List, mockTypes(f.Body.List))
+	f.Body.List = Simplify(f.Body.List, mockTypes(f.Body.List), true)
 	got := fprint(t, fset, file)
 
 	if got != expected {
