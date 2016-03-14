@@ -63,6 +63,8 @@ func TestSimplify(t *testing.T) {
 	simplifyAndCompare(t, "for a { b()() }", "for a { _1 := b(); _1() }")
 	// simplifyAndCompare(t, "for a() { b() }", "for { _1 := a(); if !_1 { break }; b() }")
 
+	simplifyAndCompare(t, "for range a { b()() }", "for range a { _1 := b(); _1() }")
+
 	simplifyAndCompare(t, "select { case <-a: b()(); default: c()() }", "select { case <-a: _1 := b(); _1(); default: _2 := c(); _2() }")
 	simplifyAndCompare(t, "select { case <-a(): b; case <-c(): d }", "_1 := a(); _2 := c(); select { case <-_1: b; case <-_2: d }")
 	simplifyAndCompare(t, "var d int; select { case a().f = <-b(): c; case d = <-e(): f }", "var d int; _3 := b(); _4 := e(); select { case _1 := <-_3: _2 := a(); _2.f = _1; c; case d = <-_4: f }")

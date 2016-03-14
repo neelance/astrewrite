@@ -174,6 +174,17 @@ func (c *simplifyContext) simplifyStmt(stmts *[]ast.Stmt, s ast.Stmt) {
 	// 		},
 	// 	})
 
+	case *ast.RangeStmt:
+		*stmts = append(*stmts, &ast.RangeStmt{
+			For:    s.For,
+			Key:    s.Key,
+			Value:  s.Value,
+			TokPos: s.TokPos,
+			Tok:    s.Tok,
+			X:      s.X,
+			Body:   c.simplifyBlock(s.Body),
+		})
+
 	case *ast.IncDecStmt:
 		*stmts = append(*stmts, &ast.IncDecStmt{
 			X:      c.simplifyExpr(stmts, s.X),
