@@ -1,4 +1,4 @@
-package astutil
+package astrewrite
 
 import (
 	"fmt"
