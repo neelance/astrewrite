@@ -224,7 +224,7 @@ func (c *simplifyContext) simplifyStmt(stmts *[]ast.Stmt, s ast.Stmt) {
 				}
 				lhs := comm.Lhs[0]
 				tok := comm.Tok
-				if ContainsCall(lhs) {
+				if c.simplifyCalls && ContainsCall(lhs) {
 					id := c.newIdent()
 					bodyPrefix = append(bodyPrefix, simpleAssign(c.simplifyExpr(&bodyPrefix, comm.Lhs[0]), comm.Tok, id))
 					lhs = id
@@ -492,7 +492,7 @@ func (c *simplifyContext) simplifyExpr2(stmts *[]ast.Stmt, x ast.Expr, callOK bo
 		}
 
 	case *ast.BinaryExpr:
-		if (x.Op == token.LAND || x.Op == token.LOR) && ContainsCall(x.Y) {
+		if (x.Op == token.LAND || x.Op == token.LOR) && c.simplifyCalls && ContainsCall(x.Y) {
 			v := c.newVar(stmts, x.X)
 			cond := v
 			if x.Op == token.LOR {
