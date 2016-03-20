@@ -24,19 +24,11 @@ func Simplify(file *ast.File, info *types.Info, simplifyCalls bool) *ast.File {
 			for j, spec := range decl.Specs {
 				switch spec := spec.(type) {
 				case *ast.ValueSpec:
-					var values []ast.Expr
-					if spec.Values != nil {
-						values = make([]ast.Expr, len(spec.Values))
-						for k, value := range spec.Values {
-							values[k] = c.simplifyExpr(nil, value)
-						}
-					}
-
 					specs[j] = &ast.ValueSpec{
 						Doc:     spec.Doc,
 						Names:   spec.Names,
 						Type:    spec.Type,
-						Values:  values,
+						Values:  c.simplifyExprList(nil, spec.Values),
 						Comment: spec.Comment,
 					}
 				default:
@@ -280,15 +272,27 @@ func (c *simplifyContext) simplifyStmt(stmts *[]ast.Stmt, s ast.Stmt) {
 				if recv.Op != token.ARROW {
 					panic("unexpected comm clause")
 				}
-				lhs := comm.Lhs[0]
+				simplifyLhs := false
+				for _, x := range comm.Lhs {
+					if c.simplifyCalls && ContainsCall(x) {
+						simplifyLhs = true
+					}
+				}
+				lhs := comm.Lhs
 				tok := comm.Tok
-				if c.simplifyCalls && ContainsCall(lhs) {
-					id := c.newIdent()
-					bodyPrefix = append(bodyPrefix, simpleAssign(c.simplifyExpr(&bodyPrefix, comm.Lhs[0]), comm.Tok, id))
-					lhs = id
+				if simplifyLhs {
+					for i, x := range lhs {
+						id := c.newIdent()
+						bodyPrefix = append(bodyPrefix, simpleAssign(c.simplifyExpr(&bodyPrefix, x), comm.Tok, id))
+						lhs[i] = id
+					}
 					tok = token.DEFINE
 				}
-				newComm = simpleAssign(lhs, tok, c.simplifyExpr(stmts, recv))
+				newComm = &ast.AssignStmt{
+					Lhs: lhs,
+					Tok: tok,
+					Rhs: []ast.Expr{c.simplifyExpr(stmts, recv)},
+				}
 			case *ast.SendStmt:
 				newComm = &ast.SendStmt{
 					Chan:  c.simplifyExpr(stmts, comm.Chan),
@@ -325,6 +329,12 @@ func (c *simplifyContext) simplifyStmt(stmts *[]ast.Stmt, s ast.Stmt) {
 			Chan:  c.simplifyExpr(stmts, s.Chan),
 			Arrow: s.Arrow,
 			Value: c.simplifyExpr(stmts, s.Value),
+		})
+
+	case *ast.ReturnStmt:
+		*stmts = append(*stmts, &ast.ReturnStmt{
+			Return:  s.Return,
+			Results: c.simplifyExprList(stmts, s.Results),
 		})
 
 	default:
@@ -610,11 +620,18 @@ func (c *simplifyContext) simplifyArgs(stmts *[]ast.Stmt, args []ast.Expr) []ast
 			return vars
 		}
 	}
-	simplifiedArgs := make([]ast.Expr, len(args))
-	for i, arg := range args {
-		simplifiedArgs[i] = c.simplifyExpr(stmts, arg)
+	return c.simplifyExprList(stmts, args)
+}
+
+func (c *simplifyContext) simplifyExprList(stmts *[]ast.Stmt, exprs []ast.Expr) []ast.Expr {
+	if exprs == nil {
+		return nil
 	}
-	return simplifiedArgs
+	simplifiedExprs := make([]ast.Expr, len(exprs))
+	for i, expr := range exprs {
+		simplifiedExprs[i] = c.simplifyExpr(stmts, expr)
+	}
+	return simplifiedExprs
 }
 
 func (c *simplifyContext) newVar(stmts *[]ast.Stmt, x ast.Expr) ast.Expr {

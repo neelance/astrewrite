@@ -69,10 +69,11 @@ func TestSimplify(t *testing.T) {
 
 	simplifyAndCompareStmts(t, "select { case <-a: b()(); default: c()() }", "select { case <-a: _1 := b(); _1(); default: _2 := c(); _2() }")
 	simplifyAndCompareStmts(t, "select { case <-a(): b; case <-c(): d }", "_1 := a(); _2 := c(); select { case <-_1: b; case <-_2: d }")
-	simplifyAndCompareStmts(t, "var d int; select { case a().f = <-b(): c; case d = <-e(): f }", "var d int; _3 := b(); _4 := e(); select { case _1 := <-_3: _2 := a(); _2.f = _1; c; case d = <-_4: f }")
+	simplifyAndCompareStmts(t, "var d int; select { case a().f, a().g = <-b(): c; case d = <-e(): f }", "var d int; _5 := b(); _6 := e(); select { case _1, _3 := <-_5: _2 := a(); _2.f = _1; _4 := a(); _4.g = _3; c; case d = <-_6: f }")
 	simplifyAndCompareStmts(t, "select { case a() <- b(): c; case d() <- e(): f }", "_1 := a(); _2 := b(); _3 := d(); _4 := e(); select { case _1 <- _2: c; case _3 <- _4: f }")
 
 	simplifyAndCompareStmts(t, "a().f++", "_1 := a(); _1.f++")
+	simplifyAndCompareStmts(t, "return a()", "_1 := a(); return _1")
 	simplifyAndCompareStmts(t, "go a()()", "_1 := a(); go _1()")
 	simplifyAndCompareStmts(t, "defer a()()", "_1 := a(); defer _1()")
 	simplifyAndCompareStmts(t, "a() <- b", "_1 := a(); _1 <- b")
