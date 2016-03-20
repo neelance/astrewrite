@@ -20,30 +20,7 @@ func Simplify(file *ast.File, info *types.Info, simplifyCalls bool) *ast.File {
 	for i, decl := range file.Decls {
 		switch decl := decl.(type) {
 		case *ast.GenDecl:
-			specs := make([]ast.Spec, len(decl.Specs))
-			for j, spec := range decl.Specs {
-				switch spec := spec.(type) {
-				case *ast.ValueSpec:
-					specs[j] = &ast.ValueSpec{
-						Doc:     spec.Doc,
-						Names:   spec.Names,
-						Type:    spec.Type,
-						Values:  c.simplifyExprList(nil, spec.Values),
-						Comment: spec.Comment,
-					}
-				default:
-					specs[j] = spec
-				}
-			}
-
-			decls[i] = &ast.GenDecl{
-				Doc:    decl.Doc,
-				TokPos: decl.TokPos,
-				Tok:    decl.Tok,
-				Lparen: decl.Lparen,
-				Specs:  specs,
-				Rparen: decl.Rparen,
-			}
+			decls[i] = c.simplifyGenDecl(nil, decl)
 
 		case *ast.FuncDecl:
 			decls[i] = &ast.FuncDecl{
@@ -74,6 +51,37 @@ func (c *simplifyContext) simplifyStmtList(stmts []ast.Stmt) []ast.Stmt {
 		c.simplifyStmt(&newStmts, s)
 	}
 	return newStmts
+}
+
+func (c *simplifyContext) simplifyGenDecl(stmts *[]ast.Stmt, decl *ast.GenDecl) *ast.GenDecl {
+	if decl.Tok != token.VAR {
+		return decl
+	}
+
+	specs := make([]ast.Spec, len(decl.Specs))
+	for j, spec := range decl.Specs {
+		switch spec := spec.(type) {
+		case *ast.ValueSpec:
+			specs[j] = &ast.ValueSpec{
+				Doc:     spec.Doc,
+				Names:   spec.Names,
+				Type:    spec.Type,
+				Values:  c.simplifyExprList(stmts, spec.Values),
+				Comment: spec.Comment,
+			}
+		default:
+			specs[j] = spec
+		}
+	}
+
+	return &ast.GenDecl{
+		Doc:    decl.Doc,
+		TokPos: decl.TokPos,
+		Tok:    token.VAR,
+		Lparen: decl.Lparen,
+		Specs:  specs,
+		Rparen: decl.Rparen,
+	}
 }
 
 func (c *simplifyContext) simplifyStmt(stmts *[]ast.Stmt, s ast.Stmt) {
@@ -112,6 +120,11 @@ func (c *simplifyContext) simplifyStmt(stmts *[]ast.Stmt, s ast.Stmt) {
 			Tok:    s.Tok,
 			TokPos: s.TokPos,
 			Rhs:    rhs,
+		})
+
+	case *ast.DeclStmt:
+		*stmts = append(*stmts, &ast.DeclStmt{
+			Decl: c.simplifyGenDecl(stmts, s.Decl.(*ast.GenDecl)),
 		})
 
 	case *ast.IfStmt:

@@ -41,6 +41,7 @@ func TestSimplify(t *testing.T) {
 
 	simplifyAndCompareStmts(t, "a := b()()", "_1 := b(); a := _1()")
 	simplifyAndCompareStmts(t, "a().f = b", "_1 := a(); _1.f = b")
+	simplifyAndCompareStmts(t, "var a int = b()", "_1 := b(); var a int = _1")
 
 	simplifyAndCompareStmts(t, "if a() { b }", "_1 := a(); if _1 { b }")
 	simplifyAndCompareStmts(t, "if a := b(); a { c }", "{ a := b(); if a { c } }")
