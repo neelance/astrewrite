@@ -13,9 +13,67 @@ type simplifyContext struct {
 	simplifyCalls bool
 }
 
-func Simplify(stmts []ast.Stmt, info *types.Info, simplifyCalls bool) []ast.Stmt {
+func Simplify(file *ast.File, info *types.Info, simplifyCalls bool) *ast.File {
 	c := &simplifyContext{info: info, simplifyCalls: simplifyCalls}
-	return c.simplifyStmtList(stmts)
+
+	decls := make([]ast.Decl, len(file.Decls))
+	for i, decl := range file.Decls {
+		switch decl := decl.(type) {
+		case *ast.GenDecl:
+			specs := make([]ast.Spec, len(decl.Specs))
+			for j, spec := range decl.Specs {
+				switch spec := spec.(type) {
+				case *ast.ValueSpec:
+					var values []ast.Expr
+					if spec.Values != nil {
+						values = make([]ast.Expr, len(spec.Values))
+						for k, value := range spec.Values {
+							values[k] = c.simplifyExpr(nil, value)
+						}
+					}
+
+					specs[j] = &ast.ValueSpec{
+						Doc:     spec.Doc,
+						Names:   spec.Names,
+						Type:    spec.Type,
+						Values:  values,
+						Comment: spec.Comment,
+					}
+				default:
+					specs[j] = spec
+				}
+			}
+
+			decls[i] = &ast.GenDecl{
+				Doc:    decl.Doc,
+				TokPos: decl.TokPos,
+				Tok:    decl.Tok,
+				Lparen: decl.Lparen,
+				Specs:  specs,
+				Rparen: decl.Rparen,
+			}
+
+		case *ast.FuncDecl:
+			decls[i] = &ast.FuncDecl{
+				Doc:  decl.Doc,
+				Recv: decl.Recv,
+				Name: decl.Name,
+				Type: decl.Type,
+				Body: c.simplifyBlock(decl.Body),
+			}
+		}
+	}
+
+	return &ast.File{
+		Doc:        file.Doc,
+		Package:    file.Package,
+		Name:       file.Name,
+		Decls:      decls,
+		Scope:      file.Scope,
+		Imports:    file.Imports,
+		Unresolved: file.Unresolved,
+		Comments:   file.Comments,
+	}
 }
 
 func (c *simplifyContext) simplifyStmtList(stmts []ast.Stmt) []ast.Stmt {
@@ -275,6 +333,9 @@ func (c *simplifyContext) simplifyStmt(stmts *[]ast.Stmt, s ast.Stmt) {
 }
 
 func (c *simplifyContext) simplifyBlock(s *ast.BlockStmt) *ast.BlockStmt {
+	if s == nil {
+		return nil
+	}
 	return &ast.BlockStmt{
 		Lbrace: s.Lbrace,
 		List:   c.simplifyStmtList(s.List),

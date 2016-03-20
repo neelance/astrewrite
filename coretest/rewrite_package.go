@@ -43,17 +43,14 @@ func main() {
 	}
 
 	for i, file := range files {
-		for _, decl := range file.Decls {
-			if f, ok := decl.(*ast.FuncDecl); ok && f.Body != nil {
-				f.Body.List = astrewrite.Simplify(f.Body.List, typesInfo, false)
-			}
-		}
+		simplifiedFile := astrewrite.Simplify(file, typesInfo, false)
 		out, err := os.Create(filepath.Join("goroot", "src", importPath, pkg.GoFiles[i]))
 		if err != nil {
 			panic(err)
 		}
-		if err := printer.Fprint(out, fset, file); err != nil {
+		if err := printer.Fprint(out, fset, simplifiedFile); err != nil {
 			panic(err)
 		}
+		out.Close()
 	}
 }
