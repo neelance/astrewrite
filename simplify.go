@@ -380,7 +380,12 @@ func (c *simplifyContext) simplifySwitch(stmts *[]ast.Stmt, s *ast.SwitchStmt) {
 
 	var tag ast.Expr = ast.NewIdent("true")
 	if s.Tag != nil {
-		tag = c.newVar(stmts, s.Tag)
+		switch len(s.Body.List) {
+		case 0:
+			*stmts = append(*stmts, simpleAssign(ast.NewIdent("_"), token.ASSIGN, s.Tag))
+		default:
+			tag = c.newVar(stmts, s.Tag)
+		}
 	}
 	*stmts = append(*stmts, c.switchToIfElse(tag, clauses)...)
 }

@@ -57,6 +57,7 @@ func TestSimplify(t *testing.T) {
 	simplifyAndCompareStmts(t, "switch a() { case b: c; default: e; case c: d }", "switch { default: _1 := a(); if _1 == (b) { c } else if _1 == (c) { d } else { e } }")
 	simplifyAndCompareStmts(t, "switch a { case b(): c }", "switch { default: _1 := a; _2 := b(); if _1 == (_2) { c } }")
 	simplifyAndCompareStmts(t, "switch a { default: d; fallthrough; case b: c }", "switch { default: _1 := a; if _1 == (b) { c } else { d; c } }")
+	simplifyAndCompareStmts(t, "switch a := 0; a {}", "switch { default: a := 0; _ = a }")
 
 	simplifyAndCompareStmts(t, "switch a().(type) { case b, c: d }", "_1 := a(); switch _1.(type) { case b, c: d }")
 	simplifyAndCompareStmts(t, "switch x := a(); x.(type) { case b: c }", "{ x := a(); switch x.(type) { case b: c } }")
