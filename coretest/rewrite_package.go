@@ -34,6 +34,8 @@ func main() {
 
 	typesInfo := &types.Info{
 		Types: make(map[ast.Expr]types.TypeAndValue),
+		Defs:  make(map[*ast.Ident]types.Object),
+		Uses:  make(map[*ast.Ident]types.Object),
 	}
 	config := &types.Config{
 		Importer: importer.Default(),

@@ -10,7 +10,13 @@ import (
 	"testing"
 )
 
-var emptyTypes = func(*ast.File) *types.Info { return &types.Info{} }
+var emptyTypes = func(*ast.File) *types.Info {
+	return &types.Info{
+		Types: make(map[ast.Expr]types.TypeAndValue),
+		Defs:  make(map[*ast.Ident]types.Object),
+		Uses:  make(map[*ast.Ident]types.Object),
+	}
+}
 
 func TestSimplify(t *testing.T) {
 	simplifyAndCompareStmts(t, "-a()", "_1 := a(); -_1")
@@ -96,6 +102,8 @@ func TestSimplify(t *testing.T) {
 						types.NewParam(0, nil, "y", nil),
 					)},
 				},
+				Defs: make(map[*ast.Ident]types.Object),
+				Uses: make(map[*ast.Ident]types.Object),
 			}
 		},
 	)
