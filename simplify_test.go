@@ -12,9 +12,10 @@ import (
 
 var emptyTypes = func(*ast.File) *types.Info {
 	return &types.Info{
-		Types: make(map[ast.Expr]types.TypeAndValue),
-		Defs:  make(map[*ast.Ident]types.Object),
-		Uses:  make(map[*ast.Ident]types.Object),
+		Types:  make(map[ast.Expr]types.TypeAndValue),
+		Defs:   make(map[*ast.Ident]types.Object),
+		Uses:   make(map[*ast.Ident]types.Object),
+		Scopes: make(map[ast.Node]*types.Scope),
 	}
 }
 
@@ -102,8 +103,9 @@ func TestSimplify(t *testing.T) {
 						types.NewParam(0, nil, "y", nil),
 					)},
 				},
-				Defs: make(map[*ast.Ident]types.Object),
-				Uses: make(map[*ast.Ident]types.Object),
+				Defs:   make(map[*ast.Ident]types.Object),
+				Uses:   make(map[*ast.Ident]types.Object),
+				Scopes: make(map[ast.Node]*types.Scope),
 			}
 		},
 	)
