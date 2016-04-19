@@ -10,9 +10,20 @@ import (
 	"testing"
 )
 
-var emptyTypes = func(*ast.File) *types.Info {
+func emptyTypes(f *ast.File) *types.Info {
 	return &types.Info{
 		Types:  make(map[ast.Expr]types.TypeAndValue),
+		Defs:   make(map[*ast.Ident]types.Object),
+		Uses:   make(map[*ast.Ident]types.Object),
+		Scopes: make(map[ast.Node]*types.Scope),
+	}
+}
+
+func simpleTypes(x ast.Expr, t types.Type) *types.Info {
+	return &types.Info{
+		Types: map[ast.Expr]types.TypeAndValue{
+			x: types.TypeAndValue{Type: t},
+		},
 		Defs:   make(map[*ast.Ident]types.Object),
 		Uses:   make(map[*ast.Ident]types.Object),
 		Scopes: make(map[ast.Node]*types.Scope),
@@ -75,8 +86,6 @@ func TestSimplify(t *testing.T) {
 	simplifyAndCompareStmts(t, "for a { b()() }", "for a { _1 := b(); _1() }")
 	// simplifyAndCompareStmts(t, "for a() { b() }", "for { _1 := a(); if !_1 { break }; b() }")
 
-	simplifyAndCompareStmts(t, "for range a { b()() }", "for range a { _1 := b(); _1() }")
-
 	simplifyAndCompareStmts(t, "select { case <-a: b()(); default: c()() }", "select { case <-a: _1 := b(); _1(); default: _2 := c(); _2() }")
 	simplifyAndCompareStmts(t, "select { case <-a(): b; case <-c(): d }", "_1 := a(); _2 := c(); select { case <-_1: b; case <-_2: d }")
 	simplifyAndCompareStmts(t, "var d int; select { case a().f, a().g = <-b(): c; case d = <-e(): f }", "var d int; _5 := b(); _6 := e(); select { case _1, _3 := <-_5: _2 := a(); _2.f = _1; _4 := a(); _4.g = _3; c; case d = <-_6: f }")
@@ -96,17 +105,21 @@ func TestSimplify(t *testing.T) {
 		func(file *ast.File) *types.Info {
 			stmts := file.Decls[0].(*ast.FuncDecl).Body.List
 			call := stmts[0].(*ast.ExprStmt).X.(*ast.CallExpr).Args[0].(*ast.CallExpr)
-			return &types.Info{
-				Types: map[ast.Expr]types.TypeAndValue{
-					call: types.TypeAndValue{Type: types.NewTuple(
-						types.NewParam(0, nil, "x", nil),
-						types.NewParam(0, nil, "y", nil),
-					)},
-				},
-				Defs:   make(map[*ast.Ident]types.Object),
-				Uses:   make(map[*ast.Ident]types.Object),
-				Scopes: make(map[ast.Node]*types.Scope),
-			}
+			return simpleTypes(call, types.NewTuple(
+				types.NewParam(0, nil, "x", nil),
+				types.NewParam(0, nil, "y", nil),
+			))
+		},
+	)
+
+	simplifyAndCompare(
+		t,
+		`package main; func main() { for x := range f() { g()() } }`,
+		"package main; func main() { _2 := f(); for { var _1 bool; x, _1 := <-_2; if !_1 { break }; _3 := g(); _3() } }",
+		func(file *ast.File) *types.Info {
+			stmts := file.Decls[0].(*ast.FuncDecl).Body.List
+			expr := stmts[0].(*ast.RangeStmt).X
+			return simpleTypes(expr, types.NewChan(types.SendRecv, types.Typ[types.Int]))
 		},
 	)
 
