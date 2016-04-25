@@ -2,33 +2,16 @@ package astrewrite
 
 import (
 	"bytes"
+	"fmt"
 	"go/ast"
+	"go/importer"
 	"go/parser"
 	"go/printer"
 	"go/token"
 	"go/types"
+	"io/ioutil"
 	"testing"
 )
-
-func emptyTypes(f *ast.File) *types.Info {
-	return &types.Info{
-		Types:  make(map[ast.Expr]types.TypeAndValue),
-		Defs:   make(map[*ast.Ident]types.Object),
-		Uses:   make(map[*ast.Ident]types.Object),
-		Scopes: make(map[ast.Node]*types.Scope),
-	}
-}
-
-func simpleTypes(x ast.Expr, t types.Type) *types.Info {
-	return &types.Info{
-		Types: map[ast.Expr]types.TypeAndValue{
-			x: types.TypeAndValue{Type: t},
-		},
-		Defs:   make(map[*ast.Ident]types.Object),
-		Uses:   make(map[*ast.Ident]types.Object),
-		Scopes: make(map[ast.Node]*types.Scope),
-	}
-}
 
 func TestSimplify(t *testing.T) {
 	simplifyAndCompareStmts(t, "-a()", "_1 := a(); -_1")
@@ -98,53 +81,58 @@ func TestSimplify(t *testing.T) {
 	simplifyAndCompareStmts(t, "a() <- b", "_1 := a(); _1 <- b")
 	simplifyAndCompareStmts(t, "a <- b()", "_1 := b(); a <- _1")
 
-	simplifyAndCompare(
-		t,
-		"package main; func main() { f(g()) }",
-		"package main; func main() { _1, _2 := g(); f(_1, _2) }",
-		func(file *ast.File) *types.Info {
-			stmts := file.Decls[0].(*ast.FuncDecl).Body.List
-			call := stmts[0].(*ast.ExprStmt).X.(*ast.CallExpr).Args[0].(*ast.CallExpr)
-			return simpleTypes(call, types.NewTuple(
-				types.NewParam(0, nil, "x", nil),
-				types.NewParam(0, nil, "y", nil),
-			))
-		},
-	)
+	for _, name := range []string{"var", "tuple", "range"} {
+		fset := token.NewFileSet()
+		inFile, err := parser.ParseFile(fset, fmt.Sprintf("testdata/%s.go", name), nil, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-	simplifyAndCompare(
-		t,
-		`package main; func main() { for x := range f() { g()() } }`,
-		"package main; func main() { _2 := f(); for { var _1 bool; x, _1 := <-_2; if !_1 { break }; _3 := g(); _3() } }",
-		func(file *ast.File) *types.Info {
-			stmts := file.Decls[0].(*ast.FuncDecl).Body.List
-			expr := stmts[0].(*ast.RangeStmt).X
-			return simpleTypes(expr, types.NewChan(types.SendRecv, types.Typ[types.Int]))
-		},
-	)
+		typesInfo := &types.Info{
+			Types:  make(map[ast.Expr]types.TypeAndValue),
+			Defs:   make(map[*ast.Ident]types.Object),
+			Uses:   make(map[*ast.Ident]types.Object),
+			Scopes: make(map[ast.Node]*types.Scope),
+		}
+		config := &types.Config{
+			Importer: importer.Default(),
+		}
+		if _, err := config.Check("main", fset, []*ast.File{inFile}, typesInfo); err != nil {
+			t.Fatal(err)
+		}
 
-	simplifyAndCompare(
-		t,
-		"package main; var x = func() { f()() }",
-		"package main; var x = func() { _1 := f(); _1() }",
-		emptyTypes,
-	)
+		outFile := Simplify(inFile, typesInfo, true)
+		got := fprint(t, fset, outFile)
+		expected, err := ioutil.ReadFile(fmt.Sprintf("testdata/%s.expected.go", name))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != string(expected) {
+			t.Errorf("expected:\n%s\n--- got:\n%s\n", string(expected), got)
+		}
+	}
 }
 
 func simplifyAndCompareStmts(t *testing.T, in, out string) {
 	inFile := "package main; func main() { " + in + " }"
 	outFile := "package main; func main() { " + out + " }"
-	simplifyAndCompare(t, inFile, outFile, emptyTypes)
-	simplifyAndCompare(t, outFile, outFile, emptyTypes)
+	simplifyAndCompare(t, inFile, outFile)
+	simplifyAndCompare(t, outFile, outFile)
 }
 
-func simplifyAndCompare(t *testing.T, in, out string, mockTypes func(*ast.File) *types.Info) {
+func simplifyAndCompare(t *testing.T, in, out string) {
 	fset := token.NewFileSet()
 
 	expected := fprint(t, fset, parse(t, fset, out))
 
 	inFile := parse(t, fset, in)
-	outFile := Simplify(inFile, mockTypes(inFile), true)
+	typesInfo := &types.Info{
+		Types:  make(map[ast.Expr]types.TypeAndValue),
+		Defs:   make(map[*ast.Ident]types.Object),
+		Uses:   make(map[*ast.Ident]types.Object),
+		Scopes: make(map[ast.Node]*types.Scope),
+	}
+	outFile := Simplify(inFile, typesInfo, true)
 	got := fprint(t, fset, outFile)
 
 	if got != expected {
